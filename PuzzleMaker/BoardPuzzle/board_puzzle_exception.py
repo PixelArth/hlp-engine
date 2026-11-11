@@ -1,0 +1,2 @@
+class BoardPuzzleException(Exception):
+    pass
