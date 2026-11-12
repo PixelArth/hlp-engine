@@ -138,7 +138,7 @@ class BoardPathViewer:
         self.next_button.config(state="normal" if self.index < self.total - 1 else "disabled")
 
 
-def show_solution_path(boards: list[list[list]], objective_coords: dict[int,list[list[int, int]]]):
+def show_solution_path(boards: list[list[list]], objective_coords: set[tuple[int,int]]):
     """
     Opens a window to browse the solution path.
 
