@@ -39,7 +39,7 @@ class Controller:
         return new_controller, data["objective"]
 
 
-    def update_state(self) -> None:
+    def update_state(self, update_grid=False) -> None:
         """
             Updates the current board state (mapping movable blocks to their coordinates) based on the coordinates of each block.
 
@@ -48,15 +48,16 @@ class Controller:
         registry = MovableBoardElement.registry
         for (block_id,block) in registry.items():
             self.board.board_state[block_id] = block.coords
-        self.board.update_grid()
+            
+        if update_grid : self.board.update_grid()
 
-    def update_coords(self, new_board_state) -> None :
+    def update_coords(self, new_board_state, update_grid=False) -> None :
         """
         Updates the coordinates when switching between boards states
         """
         MovableBoardElement.update_coords(new_board_state)
         self.board.board_state = new_board_state # VERY IMPORTANT TO UPDATE THE BOARD STATE, OTHERWISE THE GRID WILL BE WRONG
-        self.board.update_grid()
+        if update_grid: self.board.update_grid()
 
 
     def move_block(self, block : MovableBoardElement,
@@ -67,30 +68,32 @@ class Controller:
             2. Update the board_state with the new coordinates of the block
             3. Update the view (grid attribute), totally controlled by the board_state
 
+            if any block_state has been made while using directly the block.coords attribute
+            of the block passed in argument, the block_state will automatically be updated.
+
             Returns True when the Objective block reach its objective position
         """
+        coordinates = block.coords
 
         # Remove old coordinates
         if direction == "UP" or direction == "DOWN":
             for col,row in trailing_components.items():
-                block.coords.remove([row,col])
+                coordinates.remove([row,col])
         else:
             for row,col in trailing_components.items():
-                block.coords.remove([row,col])
+                coordinates.remove([row,col])
+
 
         # Add new coordinates
         if direction == "UP":
             for col,row in leading_components.items():
-                block.coords.append([row-1,col])
+                coordinates.append([row-1,col])
         elif direction == "DOWN":
             for col,row in leading_components.items():
-                block.coords.append([row+1,col])
+                coordinates.append([row+1,col])
         elif direction == "LEFT":
             for row,col in leading_components.items():
-                block.coords.append([row,col-1])
+                coordinates.append([row,col-1])
         else:
             for row,col in leading_components.items():
-                block.coords.append([row,col+1])
-
-        # Update
-        self.update_state()
+                coordinates.append([row,col+1])

@@ -1,23 +1,15 @@
 """
-Board solver 1.0. Can Solve any board that is known to be solvable.
+Board solver v1.3
 
-Solving strategy :
+Solving strategy : BFS
 
-1. Compute each possible movement in the current state and add it to the list of all movement in queue.
-2. Choose a random movement to execute that has not been done yet.
-3. Link the state before the movement and after the movement with the network graph dictionnary
-4. If the goal is reached, stop. Else if the state reached is a new state, go back to step 1. Else go back to step 2.
-
+Can solve any board with one or multiple objectives to achieve
+- solve function : returns True as soon as a solution if found
+- explore function : executes every single moves possible to create the full graph of the board (substentially longer)
 """
 
-
-
-
-import random
-import copy
 import hashlib
 import json
-import time
 from collections import defaultdict
 
 import networkx as nx
@@ -26,8 +18,9 @@ from board import Board
 from controller import Controller
 from board_elements import MovableBoardElement
 
-class BoardSolver:
+OPPOSITE_DIRECTION = {"UP":"DOWN", "DOWN":"UP", "RIGHT" : "LEFT", "LEFT":"RIGHT"}
 
+class BoardSolver:
 
     def __init__(self, controller : Controller, objective_map : dict[ int,list[list[int]] ]):
         self.objective_block_ids = MovableBoardElement.get_objective_block_ids()
@@ -40,78 +33,71 @@ class BoardSolver:
         self.board_states = {} # state_id -> board state (MovableBoardElement -> coordinates of the block)
         self.state_graph = defaultdict(list) # Adjacency matrix (state_id -> list of other state_ids that are only 1 move away)
 
-
     # ============================= #
     # Solver and explorer functions #
     # ============================= #
 
-    def explore(self):
+    def optimized_explore(self):
         """
         Explore every single state of the board.
 
         Returns True the objective is reached else False.
         """
-        print("Discovering all possible states, might take a while...")
+        print("Discovering all possible states \n(can be long, if you want to see if a solution exists, use solve instead)")
 
+        new_state_id = None
+        solved = False
+        registry = MovableBoardElement.registry
+        block_list: list[MovableBoardElement] = list(registry.values())
+        block_ids = list(registry.keys())
+        move_queues = {} 
         board = self.controller.board
-
-        self.controller.update_state() # Make sure the board is updated
-
-        block_list: list[MovableBoardElement] = list(MovableBoardElement.registry.values())
-
-        move_queues = {} # move_queue for each board_state
-        start_state_id = self.state_to_id(board.board_state)
-        move_queues[start_state_id] = (self.fill_move_queue(board=board, block_list=block_list))
         
+        self.controller.update_state()
+        start_state_id = self.state_to_id_fast(self.controller.board.board_state, block_ids)
+        
+        print(f"First state : {start_state_id}")
+        print(f"\nSolving the board... it might take some time !")
+        
+        move_queues[start_state_id] = (self.fill_move_queue(self.controller.board, block_list))
+        self.board_states[start_state_id] = board.board_state
         if move_queues[start_state_id] == []:
             print("No block can move in the board. The board cannot be solved, please check the board.")
-            return
+            return False
 
-        self.board_states[start_state_id] = board.board_state
+        new_state_id = None
         solved_state_ids = []
 
-        while move_queues != {} or current_state_id not in self.board_states:
-            # Compute all moves if it's a new state
-            current_state_id = self.state_to_id(board.board_state)
-            if current_state_id not in self.board_states:
-                move_queues[current_state_id] = (self.fill_move_queue(board=board, block_list=block_list))
-                self.board_states[current_state_id] = board.board_state
-
-            # Choose a random move to execute (state and move)
-            chosen_state_id = random.choice(list(move_queues.keys()))
-            chosen_move = random.choice(move_queues[chosen_state_id])
-
-            # Remove move choice from list and state from list if all moves have been chosen
-            move_queues[chosen_state_id].remove(chosen_move)
-            if move_queues[chosen_state_id] == []:
-                move_queues.pop(chosen_state_id)
-
-            # Set the board in the desired state
-            # (1. update coords of the block,
-            #  2.Update the grid --> Inside the coord update,
-            #  3.update the board_state attribute
-            # )
-            # and execute move
-            chosen_board_state = copy.deepcopy(self.board_states[chosen_state_id]) # Get state
-            self.controller.update_coords(new_board_state=chosen_board_state) # 1. and 2.
-            board.board_state = chosen_board_state # 3.
-
+        while move_queues != {} or new_state_id not in self.board_states:
+            # Take next move
+            chosen_state_id = next(iter(move_queues.keys()))
+            queue = move_queues[chosen_state_id]
+            chosen_move = queue.pop(0)
+            if not queue:
+                del move_queues[chosen_state_id]
+                
+            # Set into the right state
+            chosen_board_state = {block_id: list(coords) for block_id, coords in self.board_states[chosen_state_id].items()}
+            self.controller.update_coords(chosen_board_state)
+        
+            # Execute move and check for objective
             block_id, direction, leading_components, trailing_components = chosen_move
-            block = MovableBoardElement.registry[block_id]
-
-            self.controller.move_block(block = block, direction=direction,
-                                       leading_components=leading_components, trailing_components=trailing_components) # board is updated inside the function
+            block = registry[block_id]
+            self.controller.move_block(block, direction,
+                                       leading_components, trailing_components)
             solved = self.is_objective_reached()
-
-            new_state_id = self.state_to_id(board.board_state)
+            
+            new_state_id = self.state_to_id_fast(board.board_state, block_ids)
+            
+            # Update graph
             if new_state_id not in self.state_graph[chosen_state_id]:
                 self.state_graph[chosen_state_id].append(new_state_id)
             if chosen_state_id not in self.state_graph[new_state_id]:
                 self.state_graph[new_state_id].append(chosen_state_id)
 
-            if solved:
+            if solved and new_state_id not in solved_state_ids:
                 solved_state_ids.append(new_state_id)
-
+                
         self.board_states[new_state_id] = board.board_state
 
         if solved_state_ids != [] :
@@ -121,111 +107,125 @@ class BoardSolver:
                 self.find_optimal_solution(start_state_id=start_state_id, solved_state_ids=solved_state_ids)
             self.build_solution_boards(shortest_path=optimal_path)
 
-            print(f"Explored all possible states. \nThere are {len(self.board_states)} states.")
+            self.print_puzzle_metrics(solved=True, path_length=optimal_length)
             print(f"There are {len(solved_state_ids)} solved states.")
-            print(f"Optimal path length is {optimal_length}")
             return optimal_path
 
-        print(f"Explored all possible states !\nThere are {len(self.board_states)} states !")
-        print("There are no existing state where the objective is reached. The board is unsolvable.")
+        self.print_puzzle_metrics()
         return False
 
-    def solve(self):
+    def optimized_solve(self):
         """
-        Solve the given board by exploring randomly new states and the possible
-        movements of the blocks in the board.
+        Solves the board puzzle using a BFS algorithm.
+        Stops as soon as a solution is found.
         
-        This is the recommended operation when trying to know if the board is solvable,
-        it's much faster than the explore function (which explores EVERY possible state)
+        In case the board is unsolvable, this is equivalent at optimized_explore() as it
+        will explore every state
         
-        Returns True if the board is solvable, False otherwise.
+        Returns True if a solution exists, False otherwise.
         """
-        self.controller.update_state() # Make sure the board is updated
-        self.start_state_id = self.state_to_id(self.controller.board.board_state)
-
-        print(f"First state : {self.start_state_id}")
-        print(f"\nSolving the board... it might take some time !")
-
+        new_state_id = None
         solved = False
-        block_list: list[MovableBoardElement] = list(MovableBoardElement.registry.values())
-        move_queues = {} # move_queue for each board_state
-
+        registry = MovableBoardElement.registry
+        block_list: list[MovableBoardElement] = list(registry.values())
+        block_ids = list(registry.keys())
+        move_queues = {} 
+        board = self.controller.board
+        
+        self.controller.update_state() # Make sure the board is updated
+        start_state_id = self.state_to_id_fast(board.board_state, block_ids)
+        
+        print(f"First state : {start_state_id}")
+        print(f"\nSolving the board... it might take some time !")
+        
+        move_queues[start_state_id] = (self.fill_move_queue(board, block_list))
+        self.board_states[start_state_id] = board.board_state
+        if move_queues[start_state_id] == []:
+            print("No block can move in the board. The board cannot be solved, please check the board.")
+            return False
+        
         while not solved:
+            # Take next move
+            chosen_state_id = next(iter(move_queues.keys()))
+            queue = move_queues[chosen_state_id]
+            chosen_move = queue.pop(0)
+            if not queue:
+                del move_queues[chosen_state_id]
+                
+            # Set into the right state
+            chosen_board_state = {block_id: list(coords) for block_id, coords in self.board_states[chosen_state_id].items()}
+            self.controller.update_coords(chosen_board_state)
 
-            current_state_id = self.state_to_id(self.controller.board.board_state)
-            # Compute all moves if it's a brand new state of the board
-            if current_state_id not in self.board_states:
-                move_queues[current_state_id] = (self.fill_move_queue(board=self.controller.board, block_list=block_list))
-                self.board_states[current_state_id] = self.controller.board.board_state
-
-            if move_queues == {}:
-                return False
-
-            # Choose a random move to execute (state and move)
-            chosen_state_id = random.choice(list(move_queues.keys()))
-            chosen_move = random.choice(move_queues[chosen_state_id])
-
-            # Remove move choice from list and state from list if all moves have been chosen
-            move_queues[chosen_state_id].remove(chosen_move)
-            if move_queues[chosen_state_id] == []:
-                move_queues.pop(chosen_state_id)
-
-            # Set the board in the desired state
-            # (1. update coords of the block,
-            #  2.Update the grid --> Inside the coord update,
-            #  3.update the board_state attribute )
-            chosen_board_state = copy.deepcopy(self.board_states[chosen_state_id]) # Get state
-            self.controller.update_coords(new_board_state=chosen_board_state) # 1. , 2. and 3.
-
+            # Execute move and check for objective
             block_id, direction, leading_components, trailing_components = chosen_move
-            block = MovableBoardElement.registry[block_id]
-
-            # Move
-            self.controller.move_block(block = block, direction=direction,
-                                       leading_components=leading_components, trailing_components=trailing_components) # board is updated inside the function
-
+            block = registry[block_id]
+            self.controller.move_block(block, direction,
+                                       leading_components, trailing_components)
             solved = self.is_objective_reached()
-
-            new_state_id = self.state_to_id(self.controller.board.board_state)
+            
+            new_state_id = self.state_to_id_fast(board.board_state, block_ids)
+            
+            # Update graph
             if new_state_id not in self.state_graph[chosen_state_id]:
                 self.state_graph[chosen_state_id].append(new_state_id)
             if chosen_state_id not in self.state_graph[new_state_id]:
                 self.state_graph[new_state_id].append(chosen_state_id)
+            
+            # Add new moves strategically without adding the symetric move performed on this step
+            if new_state_id not in self.board_states:
+                self.board_states[new_state_id] = board.board_state
+                board.update_grid()  # Only update the grid layout when new moves need to be computed
+                new_moves = self.fill_move_queue(board, block_list)
+                new_moves = [move for move in new_moves if not(move[0] == block_id and move[1] == OPPOSITE_DIRECTION[direction])]
+                if new_moves: move_queues[new_state_id] = new_moves
+            elif new_state_id in move_queues:
+                new_moves = [move for move in move_queues[new_state_id] if not(move[0] == block_id and move[1] == OPPOSITE_DIRECTION[direction])]
+                if new_moves: move_queues[new_state_id] = new_moves
+                else: del move_queues[new_state_id]
 
-        self.board_states[new_state_id] = self.controller.board.board_state
-        self.end_state_id = new_state_id
-        print("Board Solved !")
-        print(f"Solved state is {self.end_state_id}")
-
-        self.print_solution(start_state_id=self.start_state_id, end_state_id=self.end_state_id)
+            if move_queues == {}:
+                self.print_puzzle_metrics(solved)
+                return False
+            
+    
+        self.board_states[new_state_id] = board.board_state
+    
+        path_length = self.print_solution(start_state_id=start_state_id, end_state_id=new_state_id)
+        self.print_puzzle_metrics(solved, path_length)
         return True
+        
 
-    def print_solution(self, start_state_id, end_state_id):
+    def print_solution(self, start_state_id, end_state_id) -> int:
+        """
+        Prints solution in terminal
+        
+        Returns path length
+        """
+        
         graph = nx.from_dict_of_lists(self.state_graph)
-        shortest_path = nx.shortest_path(graph, source=start_state_id, target=end_state_id)
+        path = nx.shortest_path(graph, source=start_state_id, target=end_state_id)
 
-        print(f"Solution path length : {len(shortest_path)}")
+        path = [self.board_states[state_id] for state_id in path]
 
-        solution_boards = self.build_solution_boards(shortest_path)
+        solution_boards = self.build_solution_boards(path)
         for board in solution_boards:
             b = Board(size=len(board))
             b.grid = board
             print(b)
 
-        print("Done.")
+        return len(path)
 
-    def build_solution_boards(self, shortest_path):
-        """
-            Build the list containing all steps to complete the puzzle from the given shortest_path
-
-            returns the list of each board
-        """
-        self.solution_boards = []
-        for board_state in shortest_path:
-            self.controller.update_coords(new_board_state=board_state)
-            self.solution_boards.append(self.controller.board.grid)
-
-        return self.solution_boards
+    def print_puzzle_metrics(self, solved : bool | None = False, path_length : int | None = -1):
+            n_edges = sum([len(v) for v in self.state_graph.values()])
+            
+            if solved: 
+                print("Board is solved")
+                print(f"Path length : {path_length} states ({path_length - 1} moves)")
+            else: print("Board in unsolvable")
+            
+            print(f"There are {len(self.board_states)} states.")
+            print(f"There are {len(self.state_graph)} nodes.")
+            print(f"There are {n_edges} edges.")
 
     def find_optimal_solution(self, start_state_id, solved_state_ids : list) \
         -> tuple[list[ dict[int, list[list[int]]] ], int]:
@@ -238,18 +238,29 @@ class BoardSolver:
         """
         graph = nx.from_dict_of_lists(self.state_graph)
         
-        print("Searching optimal solution")
-        t0 = time.time()
+        print("Searching optimal solution...")
         length, path = nx.multi_source_dijkstra(G=graph, sources = solved_state_ids, target = start_state_id )
-        print(f"Computed all solutions in {(time.time() - t0):.0f}s")
         
         optimal_path = [self.board_states[state_id] for state_id in path]
         optimal_path = list(reversed(optimal_path))
         
-
         return (optimal_path, length)
 
+    def build_solution_boards(self, shortest_path):
+            """
+                Build the list containing all steps to complete the puzzle from the given shortest_path
 
+                returns the list of each board
+            """
+            self.solution_boards = []
+            
+            for board_state in shortest_path:
+                self.controller.update_coords(new_board_state=board_state, update_grid=True)
+                self.solution_boards.append(self.controller.board.grid)
+
+            return self.solution_boards
+
+    
 
     # ===================================== #
     # Solver and explorer helping functions #
@@ -289,6 +300,19 @@ class BoardSolver:
         hashed = hashlib.sha1(repr(json.dumps(board_state, sort_keys=True)).encode())
         val = hashed.digest()
         return val
+
+    def state_to_id_fast(self, board_state : dict, block_ids) -> tuple[tuple]:
+        """
+        New IDs for each state :
+            
+            - Each element coordinates is transformed into a unique number 
+            computed with : row << 8 | col
+            - Creates a tuple using these numbers, each tuple 
+            - Each tuple is the representation of a block in the grid
+            - The tuple of all tuple of all blocks gives a unique ID for board_state
+        """
+        
+        return tuple([tuple(sorted([row << 8 | col for row, col in board_state[block_id]])) for block_id in block_ids])
 
     def is_objective_reached(self):
             """
