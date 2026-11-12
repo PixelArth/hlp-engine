@@ -37,7 +37,7 @@ class BoardSolver:
     # Solver and explorer functions #
     # ============================= #
 
-    def optimized_explore(self):
+    def explore(self):
         """
         Explore every single state of the board.
 
@@ -66,9 +66,9 @@ class BoardSolver:
             return False
 
         new_state_id = None
-        solved_state_ids = []
+        solved_state_ids = set()
 
-        while move_queues != {} or new_state_id not in self.board_states:
+        while move_queues != {} :
             # Take next move
             chosen_state_id = next(iter(move_queues.keys()))
             queue = move_queues[chosen_state_id]
@@ -95,12 +95,24 @@ class BoardSolver:
             if chosen_state_id not in self.state_graph[new_state_id]:
                 self.state_graph[new_state_id].append(chosen_state_id)
 
-            if solved and new_state_id not in solved_state_ids:
-                solved_state_ids.append(new_state_id)
+
+            if new_state_id not in self.board_states:
+                self.board_states[new_state_id] = board.board_state
+                board.update_grid()  # Only update the grid layout when new moves need to be computed
+                new_moves = self.fill_move_queue(board, block_list)
+                new_moves = [move for move in new_moves if not(move[0] == block_id and move[1] == OPPOSITE_DIRECTION[direction])]
+                if new_moves: move_queues[new_state_id] = new_moves
+            elif new_state_id in move_queues:
+                new_moves = [move for move in move_queues[new_state_id] if not(move[0] == block_id and move[1] == OPPOSITE_DIRECTION[direction])]
+                if new_moves: move_queues[new_state_id] = new_moves
+                else: del move_queues[new_state_id]
+
+            if solved :
+                solved_state_ids.add(new_state_id)
                 
         self.board_states[new_state_id] = board.board_state
 
-        if solved_state_ids != [] :
+        if solved_state_ids :
             print("Exploration finished.")
 
             optimal_path, optimal_length = \
@@ -114,7 +126,7 @@ class BoardSolver:
         self.print_puzzle_metrics()
         return False
 
-    def optimized_solve(self):
+    def solve(self):
         """
         Solves the board puzzle using a BFS algorithm.
         Stops as soon as a solution is found.

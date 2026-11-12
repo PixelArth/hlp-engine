@@ -6,8 +6,8 @@ from controller import Controller
 from board_solver import BoardSolver
 from board_viewer import show_solution_path
 
-path = "boards/ferris_wheel.json"   # ~1.6M states,  1053s
-# path = "boards/ufo.json"          # ~300k states,   120s
+# path = "boards/ferris_wheel.json"     # ~1.599M states,  195s
+path = "boards/ufo.json"                # ~  327k states,   28s
 
 controller, objective_map  = Controller.make_controller_from_json(path = Path(path))
 controller.update_state()
