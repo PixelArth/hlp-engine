@@ -93,7 +93,7 @@ class MovableBoardElement(BoardElement):
         up_components = find_up_components(self)
 
         for row,col in self.coords:  # Check if block is on top and find all topmost blocks in each column
-            if row == 1:
+            if row == 0:
                 return False, up_components
 
         for col,row in up_components.items(): # Check EmptyBoardElement above each up component of the block
@@ -109,7 +109,7 @@ class MovableBoardElement(BoardElement):
         down_components = find_down_components(self)
 
         for row,col in self.coords:
-            if row == full_size-2:
+            if row == full_size-1:
                 return False, down_components
 
 
@@ -126,7 +126,7 @@ class MovableBoardElement(BoardElement):
         left_components = find_left_components(self)
 
         for row,col in self.coords:
-            if col == 1:
+            if col == 0:
                 return False, left_components
 
 
@@ -144,7 +144,7 @@ class MovableBoardElement(BoardElement):
         right_components = find_right_components(self)
 
         for row,col in self.coords:
-            if col == full_size-2:
+            if col == full_size-1:
                 return False, right_components
 
 

@@ -3,8 +3,8 @@ from controller import Controller
 from board_solver import BoardSolver
 from board_viewer import show_solution_path
 
-path = "boards/ferris_wheel.json"
-# path = "boards/ufo.json"
+# path = "boards/ferris_wheel.json"
+path = "boards/ufo.json"
 
 controller, objective_map  = Controller.make_controller_from_json(path = Path(path))
 controller.update_state(update_grid=True)

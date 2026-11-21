@@ -6,19 +6,15 @@ from board_puzzle_exception import BoardPuzzleException
 
 class Board:
     """
-    Squared-shape board with Immovable borders.
-
-    Immovable borders allows for better comprehension and better coordinate manipulation,
-    up-left corner has coords (1,1) and down-right corner has (size,size).
+    Squared-shape board made of BoardElement object.
     """
     def __init__(self, size: int):
         if size < 1:
             raise ValueError("board size is too small")
 
         # Board setup
-        self.full_size = size + 2 # Add 2 to size for the borders
+        self.full_size = size
         self.grid = self.blank_grid()
-
         self.board_state = {} # State of the board mapping the movable blocks of the board and their coordinates
 
     def __str__(self):
@@ -50,22 +46,22 @@ class Board:
         """
         rows : list of row indexes to fill with Immovable elements
 
-        rows = [1] blocks self.grid[1][1:self.full_size] (because of borders)
+        rows = [0] blocks self.grid[0][0:self.full_size]
         """
         self.check_row_or_column_out_of_range(rows)
         for row in rows:
-            for col in range(1,self.full_size-1):
+            for col in range(0,self.full_size):
                 self.grid[row][col] = ImmovableBoardElement(char="X")
 
     def block_columns(self, columns: list[int]):
         """
         columns : list of column indexes to fill with Immovable elements
 
-        columns = [1] blocks self.grid[1:self.full_size][1] (because of borders)
+        columns = [0] blocks self.grid[0:self.full_size][0]
         """
         self.check_row_or_column_out_of_range(columns)
         for col in columns:
-            for row in range(1,self.full_size-1):
+            for row in range(0,self.full_size):
                 self.grid[row][col] = ImmovableBoardElement(char="X")
 
     def place_element(self, coords : list[list[int,int]],
@@ -89,15 +85,7 @@ class Board:
         """
         Returns a blank grid of size self.full_size with 1 additionnal row and column of Immovable elements
         """
-        grid = [ [EmptyBoardElement() for col in range(self.full_size)] for row in range(self.full_size) ]
-        for row in range(self.full_size):
-            for col in range(self.full_size):
-                if row == 0 or row == self.full_size-1 :
-                    grid[row][col] = ImmovableBoardElement(char="‾")
-                if row == self.full_size-1:
-                    grid[row][col] = ImmovableBoardElement(char="_")
-                if col == 0 or col == self.full_size-1 :
-                    grid[row][col] = ImmovableBoardElement(char="|")
+        grid = [ [EmptyBoardElement() for _ in range(self.full_size)] for _ in range(self.full_size) ]
         return grid
 
     def copy_without_movable(self):
@@ -124,8 +112,8 @@ class Board:
     # ============ #
     def check_row_or_column_out_of_range(self, row_or_column):
         for value in row_or_column:
-            if not 1<=value<=self.full_size-2:
-                raise BoardPuzzleException(f"all rows/columns must be between 1 and {self.full_size-2}")
+            if not 0<=value<=self.full_size:
+                raise BoardPuzzleException(f"all rows/columns must be between 0 and {self.full_size-1}")
 
     def check_block_overlap_error(self, coords : list[list[int,int]]):
         for row,col in coords:
