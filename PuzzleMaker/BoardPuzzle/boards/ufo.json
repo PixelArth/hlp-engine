@@ -1,6 +1,6 @@
 {
     "size" : 8,
-    "air" : {
+    "empty" : {
         "coords" : [[6,1],[6,8]]
     },
     "immovable" : {

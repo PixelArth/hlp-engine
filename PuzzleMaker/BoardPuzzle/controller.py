@@ -30,7 +30,7 @@ class Controller:
 
         new_board = Board(size=data["size"])
 
-        new_board.place_element(data["air"]["coords"], element_type="Empty")
+        new_board.place_element(data["empty"]["coords"], element_type="Empty")
         new_board.place_element(data["immovable"]["coords"], element_type="Immovable")
         for _, val in data["movable"].items():
             new_board.place_element(val["coords"], element_type="Movable", is_objective=val["is_objective"])
